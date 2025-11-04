@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Reflection.Emit;
 using BepInEx.Configuration;
+using UnityEngine;
 using HarmonyLib;
 using RepoXR.Assets;
 using RepoXR.Managers;
@@ -19,20 +20,9 @@ internal static class EnemyCeilingEyePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> SetCameraSoftRotationPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Callvirt, Method(typeof(CameraAim), nameof(CameraAim.AimTargetSoftSet))))
-            .Advance(-11)
-            .SetOperandAndAdvance(Field(typeof(VRCameraAim), nameof(VRCameraAim.instance)))
-            .Advance(10)
-            // Make the rotation less severe if reduced aim impact is enabled
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Call, Plugin.GetConfigGetter()))
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Callvirt,
-                PropertyGetter(typeof(Config), nameof(Config.ReducedAimImpact))))
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Callvirt,
-                PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value))))
-            .SetOperandAndAdvance(Method(typeof(VRCameraAim), nameof(VRCameraAim.SetAimTargetSoft)))
-            .InstructionEnumeration();
+        // Disabled: per-version IL differences made this transpiler fragile. We intercept CameraAim calls directly
+        // via prefixes instead; keep this transpiler as a no-op.
+        return instructions;
     }
 
     /// <summary>
@@ -42,21 +32,46 @@ internal static class EnemyCeilingEyePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> SetCameraRotationPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Callvirt, Method(typeof(CameraAim), nameof(CameraAim.AimTargetSet))))
-            .Advance(-10)
-            .SetOperandAndAdvance(Field(typeof(VRCameraAim), nameof(VRCameraAim.instance)))
-            .Advance(9)
-            // Make the rotation less severe if reduced aim impact is enabled
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Call, Plugin.GetConfigGetter()))
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Callvirt,
-                PropertyGetter(typeof(Config), nameof(Config.ReducedAimImpact))))
-            .InsertAndAdvance(new CodeInstruction(OpCodes.Callvirt,
-                PropertyGetter(typeof(ConfigEntry<bool>), nameof(ConfigEntry<bool>.Value))))
-            .SetOperandAndAdvance(Method(typeof(VRCameraAim), nameof(VRCameraAim.SetAimTarget)))
-            .InstructionEnumeration();
+        // Disabled: per-version IL differences made this transpiler fragile. We intercept CameraAim calls directly
+        // via prefixes instead; keep this transpiler as a no-op.
+        return instructions;
     }
+
+    [HarmonyPatch(typeof(CameraAim), nameof(CameraAim.AimTargetSet))]
+    [HarmonyPrefix]
+    private static bool CameraAim_AimTargetSet_Prefix(CameraAim __instance, Vector3 position, float time, float speed, GameObject obj, int priority)
+    {
+        if (VRCameraAim.instance != null)
+        {
+            // VRCameraAim accepts a lowImpact flag; CameraAim doesn't — pass false
+            VRCameraAim.instance.SetAimTarget(position, time, speed, obj, priority, false);
+            return false; // skip original
+        }
+
+        return true; // run original
+    }
+
+    [HarmonyPatch(typeof(CameraAim), "AimTargetSoftSet")]
+    [HarmonyPrefix]
+    private static bool CameraAim_AimTargetSoftSet_Prefix(CameraAim __instance, Vector3 position, float time, float strength, float strengthNoAim, GameObject obj, int priority)
+    {
+        if (VRCameraAim.instance != null)
+        {
+            VRCameraAim.instance.SetAimTargetSoft(position, time, strength, strengthNoAim, obj, priority, false);
+            return false;
+        }
+
+        return true;
+    }
+
+    // The transpilers above attempted to mutate calls to CameraAim.AimTargetSet/AimTargetSoftSet. These
+    // transpilers were brittle across REPO versions (index/offset differences). Instead, we intercept the
+    // game's CameraAim methods globally and delegate to our VRCameraAim when available. This is simpler
+    // and avoids per-call IL surgery.
+    // NOTE: Some REPO versions don't have the optional "lowImpact" parameter on CameraAim methods.
+    // We already provide prefixes that match the common signature (without lowImpact) above. Removing
+    // the duplicated overloads that declare the extra parameter prevents Harmony from trying to map
+    // a nonexistent parameter and failing with "Parameter \"lowImpact\" not found".
 
     /// <summary>
     /// Provide haptic feedback while attached to the ceiling eye

@@ -63,8 +63,8 @@ public class MainMenu : MonoBehaviour
         mainCanvas.transform.localScale = Vector3.one * 0.03f;
         mainCanvas.transform.Find("HUD").gameObject.AddComponent<RectMask2D>();
         
-        Destroy(mainCanvas.GetComponent<GraphicRaycaster>());
-        mainCanvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+    Destroy(mainCanvas.GetComponent<GraphicRaycaster>());
+    RepoCompat.AddTrackedDeviceRaycaster(mainCanvas.gameObject);
         
         // Remove game HUD elements
         mainCanvas.transform.Find("HUD/Game Hud").gameObject.SetActive(false);

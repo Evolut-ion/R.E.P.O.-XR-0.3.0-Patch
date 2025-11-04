@@ -30,8 +30,10 @@ public class Crosshair : MonoBehaviour
         if (VRSession.Instance is not { } session)
             return;
 
-        if (!Physics.Raycast(new Ray(session.Player.MainHand.position, session.Player.MainHand.forward), out var hit,
-                10, LayerMask))
+    var hand = session.Player?.Rig?.rightHandTip ?? session.Player.MainHand;
+
+    if (!Physics.Raycast(new Ray(hand.position, hand.forward), out var hit,
+        10, LayerMask))
         {
             transform.position = Vector3.down * 3000;
             return;

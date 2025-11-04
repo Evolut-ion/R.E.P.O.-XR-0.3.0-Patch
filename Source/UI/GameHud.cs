@@ -168,7 +168,7 @@ public class GameHud : MonoBehaviour
         var menu = MenuHolder.instance.transform;
         var rect = menu.GetComponent<RectTransform>();
 
-        canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+    RepoCompat.AddTrackedDeviceRaycaster(canvas.gameObject);
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.sortingOrder = 5;
 

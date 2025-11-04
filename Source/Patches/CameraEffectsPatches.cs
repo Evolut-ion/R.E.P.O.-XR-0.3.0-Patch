@@ -55,14 +55,14 @@ internal static class CameraEffectsPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> ReduceCameraBob(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Ldfld, Field(typeof(GameplayManager), nameof(GameplayManager.cameraAnimation))))
             .Repeat(matcher => matcher.Advance(1).InsertAndAdvance(
                 new CodeInstruction(OpCodes.Ldc_R4, 0.25f),
                 new CodeInstruction(OpCodes.Mul)
             ))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "CameraEffectsPatches.ReduceCameraBob");
     }
 
     /// <summary>
@@ -72,14 +72,14 @@ internal static class CameraEffectsPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> ReduceCameraJump(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Ldfld, Field(typeof(GameplayManager), nameof(GameplayManager.cameraAnimation))))
             .Repeat(matcher => matcher.Advance(1).InsertAndAdvance(
                 new CodeInstruction(OpCodes.Ldc_R4, 0.25f),
                 new CodeInstruction(OpCodes.Mul)
             ))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "CameraEffectsPatches.ReduceCameraJump");
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ internal static class CameraEffectsPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> ReduceCameraShake(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Ldfld, Field(typeof(GameplayManager), nameof(GameplayManager.cameraShake))))
             .Advance(1)
@@ -97,7 +97,7 @@ internal static class CameraEffectsPatches
                 new CodeInstruction(OpCodes.Ldc_R4, 0.25f),
                 new CodeInstruction(OpCodes.Mul)
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "CameraEffectsPatches.ReduceCameraShake");
     }
 
     /// <summary>
@@ -107,14 +107,14 @@ internal static class CameraEffectsPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> ReduceRotationTilt(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Stfld, Field(typeof(CameraTilt), nameof(CameraTilt.tiltZresult))))
             .Advance(-10)
             .Insert(
                 new CodeInstruction(OpCodes.Ldc_R4, 0.25f),
                 new CodeInstruction(OpCodes.Mul)
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "CameraEffectsPatches.ReduceRotationTilt");
     }
 
     [HarmonyPatch(typeof(CameraGlitch), nameof(CameraGlitch.PlayLong))]

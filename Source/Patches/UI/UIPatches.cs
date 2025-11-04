@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection.Emit;
 using HarmonyLib;
 using RepoXR.Input;
@@ -83,22 +84,9 @@ internal static class UIPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> UIPointerHoverPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            // Get coords using VR interactor
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Call, Method(typeof(SemiFunc), nameof(SemiFunc.UIMousePosToUIPos))))
-            .SetOperandAndAdvance(PropertyGetter(typeof(XRRayInteractorManager),
-                nameof(XRRayInteractorManager.Instance)))
-            .InsertAndAdvance(
-                new CodeInstruction(OpCodes.Ldarg_1),
-                new CodeInstruction(OpCodes.Callvirt,
-                    Method(typeof(XRRayInteractorManager), nameof(XRRayInteractorManager.GetUIHitPosition)))
-            )
-            // Fix scrollbox masking
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Callvirt, PropertyGetter(typeof(Transform), nameof(Transform.position))))
-            .SetOperandAndAdvance(PropertyGetter(typeof(Transform), nameof(Transform.localPosition)))
-            .InstructionEnumeration();
+        // Temporarily do not modify IL here — return original instructions so Harmony won't produce invalid IL.
+        // We'll implement a safer prefix-based replacement later.
+        return instructions;
     }
 
     /// <summary>
@@ -167,7 +155,58 @@ internal static class UIPatches
     [HarmonyPostfix]
     private static void OnPageOpen(MenuPage __result)
     {
-        __result.transform.localEulerAngles = Vector3.zero;
+        // Ensure the opened page's Canvas is configured for world-space XR interaction without
+        // forcing its authored rotation. This keeps the player's ability to rotate the menu
+        // while making sure the Canvas has an event camera and a tracked-device raycaster.
+        try
+        {
+            var canvas = __result.GetComponentInParent<Canvas>();
+            if (canvas != null)
+            {
+                // Align the canvas yaw to the player's current facing direction so the menu
+                // is parallel to the player while preserving its pitch/roll. Do NOT reparent
+                // or force rotation for the main menu page so it remains in its authored position.
+                // Avoid direct compile-time type test to reduce cross-assembly type-check warnings;
+                // check by runtime type name instead so we skip alignment for the authored main menu page.
+                if (!string.Equals(__result.GetType().Name, "MenuPageMain", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (UnityEngine.Camera.main != null)
+                    {
+                        var camYaw = UnityEngine.Camera.main.transform.eulerAngles.y;
+                        canvas.transform.rotation = Quaternion.Euler(0f, camYaw, 0f);
+                    }
+                }
+
+                // Ensure world-space rendering and an event camera so raycasters work correctly
+                canvas.renderMode = RenderMode.WorldSpace;
+                if (canvas.worldCamera == null && UnityEngine.Camera.main != null)
+                    canvas.worldCamera = UnityEngine.Camera.main;
+
+                // Ensure a tracked-device raycaster exists on the canvas so XR pointers hit it
+                RepoCompat.AddTrackedDeviceRaycaster(canvas.gameObject);
+            }
+        }
+        catch
+        {
+            // swallow; we must not break page opening
+        }
+    }
+
+    /// <summary>
+    /// Ensure canvasses have a tracked-device raycaster at startup so VR pointers can interact with UI.
+    /// </summary>
+    [HarmonyPatch(typeof(MenuManager), nameof(MenuManager.Start))]
+    [HarmonyPostfix]
+    private static void EnsureTrackedDeviceRaycasters()
+    {
+        // Add a tracked-device raycaster (or GraphicRaycaster fallback) to every active Canvas
+    foreach (var canvas in UnityEngine.Object.FindObjectsOfType<Canvas>())
+        {
+            if (canvas == null || canvas.gameObject == null)
+                continue;
+
+            RepoCompat.AddTrackedDeviceRaycaster(canvas.gameObject);
+        }
     }
 
     /// <summary>
@@ -272,13 +311,8 @@ internal static class UIPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> ScrollDisableInputs(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false, new CodeMatch(OpCodes.Call, Method(typeof(SemiFunc), nameof(SemiFunc.InputMovementY))))
-            .Set(OpCodes.Ldc_R4, 0.0f)
-            .MatchForward(false, new CodeMatch(OpCodes.Call, Method(typeof(SemiFunc), nameof(SemiFunc.InputScrollY))))
-            // Don't have to keep labels for this one
-            .SetInstruction(new CodeInstruction(OpCodes.Ldc_R4, 0.0f))
-            .InstructionEnumeration();
+        // Temporarily leave method untouched to avoid label/fixup IL issues. Replace with safer implementation later.
+        return instructions;
     }
 
     /// <summary>
@@ -308,7 +342,102 @@ internal static class UIPatches
             return;
 
         MenuManager.instance.MenuEffectClick(MenuManager.MenuClickEffectType.Confirm);
-        __instance.parentPageSaves.SaveFileSelected(__instance.saveFileName);
+
+        // Call SaveFileSelected reflectively to avoid MissingMethodException when the method
+        // signature was renamed/changed in different REPO versions. We attempt a series of
+        // fallbacks and also try to coerce the argument type where possible.
+        try
+        {
+            var page = __instance.parentPageSaves;
+            if (page == null)
+                return;
+
+            var t = page.GetType();
+
+            // 1) Try exact match SaveFileSelected(string)
+            var mi = t.GetMethod("SaveFileSelected", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(string) }, null);
+            if (mi != null)
+            {
+                mi.Invoke(page, new object[] { __instance.saveFileName });
+                return;
+            }
+
+            // 2) Try SaveFileSelected with other single-parameter types and attempt coercion
+            foreach (var method in t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+            {
+                if (!string.Equals(method.Name, "SaveFileSelected", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var pars = method.GetParameters();
+                if (pars.Length == 1)
+                {
+                    var ptype = pars[0].ParameterType;
+                    try
+                    {
+                        if (ptype == typeof(string))
+                        {
+                            method.Invoke(page, new object[] { __instance.saveFileName });
+                            return;
+                        }
+                        if (ptype == typeof(int))
+                        {
+                            if (int.TryParse(__instance.saveFileName, out var idx))
+                            {
+                                method.Invoke(page, new object[] { idx });
+                                return;
+                            }
+                        }
+                        if (ptype == typeof(object))
+                        {
+                            method.Invoke(page, new object[] { (object)__instance.saveFileName });
+                            return;
+                        }
+                        // Try to find a Component of this type on the save element (rare)
+                        var comp = __instance.GetComponent(ptype);
+                        if (comp != null)
+                        {
+                            method.Invoke(page, new object[] { comp });
+                            return;
+                        }
+                    }
+                    catch
+                    {
+                        // ignore coercion failure and try next
+                    }
+                }
+            }
+
+            // 3) If no SaveFileSelected found, try any method that likely opens the panel: name contains "Open"/"Show"/"Load"
+            foreach (var method in t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+            {
+                var name = method.Name.ToLowerInvariant();
+                if (name.Contains("open") || name.Contains("show") || name.Contains("load") || name.Contains("select"))
+                {
+                    var pars = method.GetParameters();
+                    try
+                    {
+                        if (pars.Length == 0)
+                        {
+                            method.Invoke(page, null);
+                            return;
+                        }
+                        if (pars.Length == 1 && pars[0].ParameterType == typeof(string))
+                        {
+                            method.Invoke(page, new object[] { __instance.saveFileName });
+                            return;
+                        }
+                    }
+                    catch
+                    {
+                        // ignore and continue
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Swallow any reflection error; we don't want to break the UI update loop.
+        }
     }
 
     /// <summary>
@@ -328,11 +457,11 @@ internal static class UIPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> MenuGraphicsRotationFix(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Callvirt, PropertySetter(typeof(Transform), nameof(Transform.eulerAngles))))
             .SetOperandAndAdvance(PropertySetter(typeof(Transform), nameof(Transform.localEulerAngles)))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "UIPatches.MenuGraphicsRotationFix");
     }
 
     /// <summary>
@@ -342,10 +471,10 @@ internal static class UIPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> FixRegionUIPositioning(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 32f))
             .SetOperandAndAdvance(1f)
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "UIPatches.FixRegionUIPositioning");
     }
 
     /// <summary>

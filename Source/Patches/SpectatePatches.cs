@@ -50,10 +50,10 @@ internal static class SpectatePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> IncreaseFarPlanePatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 90f))
             .SetOperandAndAdvance(180f)
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "SpectatePatches.IncreaseFarPlanePatch");
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ internal static class SpectatePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> DisableMouseRotationPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Call,
                     Method(typeof(Quaternion), nameof(Quaternion.Euler),
@@ -71,7 +71,7 @@ internal static class SpectatePatches
             .Advance(-3)
             .RemoveInstructions(2)
             .Insert(new CodeInstruction(OpCodes.Ldc_R4, 0f))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "SpectatePatches.DisableMouseRotationPatch");
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ internal static class SpectatePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> CameraRotationPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Call,
                     PropertySetter(typeof(RenderSettings), nameof(RenderSettings.fogStartDistance))))
@@ -103,7 +103,7 @@ internal static class SpectatePatches
                 new CodeInstruction(OpCodes.Newobj, Constructor(typeof(Vector3), [typeof(float), typeof(float), typeof(float)]))
             )
             .SetOperandAndAdvance(PropertySetter(typeof(Transform), nameof(Transform.eulerAngles)))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "SpectatePatches.CameraRotationPatch");
     }
 
     /// <summary>
@@ -113,12 +113,12 @@ internal static class SpectatePatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> InputPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Call, Method(typeof(SemiFunc), nameof(SemiFunc.InputMouseX))))
             .SetOperandAndAdvance(((Func<float>)GetRotationX).Method)
             .MatchForward(false, new CodeMatch(OpCodes.Call, Method(typeof(SemiFunc), nameof(SemiFunc.InputMouseY))))
             .SetOperandAndAdvance(((Func<float>)GetRotationY).Method)
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "SpectatePatches.InputPatch");
 
         static float GetRotationX() => -Actions.Instance["Movement"].ReadValue<Vector2>().x;
         static float GetRotationY() => -Actions.Instance["Movement"].ReadValue<Vector2>().y;

@@ -289,7 +289,7 @@ public class VRRig : MonoBehaviour
                 // Prevent picking up items while the map is opened
                 if (!VRSession.IsLeftHanded)
                 {
-                    playerAvatar.physGrabber.ReleaseObject();
+                    RepoCompat.ReleaseObjectSafe(playerAvatar.physGrabber);
                     playerAvatar.physGrabber.enabled = false;
                 }
             }
@@ -308,7 +308,7 @@ public class VRRig : MonoBehaviour
                 // Prevent picking up items while the map is opened
                 if (VRSession.IsLeftHanded)
                 {
-                    playerAvatar.physGrabber.ReleaseObject();
+                    RepoCompat.ReleaseObjectSafe(playerAvatar.physGrabber);
                     playerAvatar.physGrabber.enabled = false;
                 }
             }

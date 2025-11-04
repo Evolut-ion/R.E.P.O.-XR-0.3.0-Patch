@@ -16,31 +16,31 @@ internal static class PhysGrabObjectPatches
     private static Transform GetTargetTransform(PlayerAvatar player)
     {
         if (player.isLocal)
-            return VRSession.Instance is { } session ? session.Player.MainHand : player.localCameraTransform;
+            return VRSession.Instance is { } session ? session.Player.MainHand : RepoCompat.GetLocalCameraTransform(player);
 
         return NetworkSystem.instance.GetNetworkPlayer(player, out var networkPlayer)
             ? networkPlayer.PrimaryHand
-            : player.localCameraTransform;
+            : RepoCompat.GetLocalCameraTransform(player);
     }
 
     private static Quaternion GetTargetRotation(PlayerAvatar player)
     {
         if (player.isLocal)
-            return VRSession.Instance is { } session ? session.Player.MainHand.rotation : player.localCameraRotation;
+            return VRSession.Instance is { } session ? session.Player.MainHand.rotation : RepoCompat.GetLocalCameraRotation(player);
 
         return NetworkSystem.instance.GetNetworkPlayer(player, out var networkPlayer)
             ? networkPlayer.PrimaryHand.rotation
-            : player.localCameraRotation;
+            : RepoCompat.GetLocalCameraRotation(player);
     }
 
     private static Vector3 GetTargetPosition(PlayerAvatar player)
     {
         if (player.isLocal)
-            return VRSession.Instance is { } session ? session.Player.MainHand.position : player.localCameraPosition;
+            return VRSession.Instance is { } session ? session.Player.MainHand.position : RepoCompat.GetLocalCameraPosition(player);
 
         return NetworkSystem.instance.GetNetworkPlayer(player, out var networkPlayer)
             ? networkPlayer.PrimaryHand.position
-            : player.localCameraPosition;
+            : RepoCompat.GetLocalCameraPosition(player);
     }
 
     private static Transform GetCartSteerTransform(PhysGrabber grabber)
@@ -60,13 +60,9 @@ internal static class PhysGrabObjectPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> HandRelativeMovementPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Ldfld, Field(typeof(PlayerAvatar), nameof(PlayerAvatar.localCameraTransform))))
-            .Repeat(matcher =>
-                matcher.SetInstruction(new CodeInstruction(OpCodes.Call,
-                    ((Func<PlayerAvatar, Transform>)GetTargetTransform).Method)))
-            .InstructionEnumeration();
+        // Disabled: instruction-level replacements caused InvalidProgram at runtime on some REPO builds.
+        // Keep as a no-op transpiler for now; we'll implement VR-hand behavior using postfix/prefix methods.
+        return instructions;
     }
 
     /// <summary>
@@ -76,25 +72,8 @@ internal static class PhysGrabObjectPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> HandRelativeCartPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Call,
-                    Method(typeof(Mathf), nameof(Mathf.Clamp), [typeof(float), typeof(float), typeof(float)])))
-            .Advance(-7)
-            .SetInstruction(new CodeInstruction(OpCodes.Call,
-                ((Func<PhysGrabber, Transform>)GetCartSteerTransform).Method))
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Callvirt, PropertyGetter(typeof(Transform), nameof(Transform.rotation))))
-            .Advance(-1)
-            .SetInstruction(new CodeInstruction(OpCodes.Call,
-                ((Func<PhysGrabber, Transform>)GetCartSteerTransform).Method))
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Call,
-                    Method(typeof(Quaternion), nameof(Quaternion.LookRotation), [typeof(Vector3), typeof(Vector3)])))
-            .Advance(-7)
-            .SetInstruction(new CodeInstruction(OpCodes.Call,
-                ((Func<PhysGrabber, Transform>)GetCartSteerTransform).Method))
-            .InstructionEnumeration();
+        // Disabled: keep original IL to avoid runtime IL issues. We'll use safer hooks instead.
+        return instructions;
     }
 
     /// <summary>
@@ -104,17 +83,8 @@ internal static class PhysGrabObjectPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> HandRelativeCartCannonPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Ldfld, Field(typeof(PlayerAvatar), nameof(PlayerAvatar.localCameraRotation))))
-            .Set(OpCodes.Call, ((Func<PlayerAvatar, Quaternion>)GetTargetRotation).Method)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Ldfld, Field(typeof(PlayerAvatar), nameof(PlayerAvatar.localCameraRotation))))
-            .Set(OpCodes.Call, ((Func<PlayerAvatar, Quaternion>)GetTargetRotation).Method)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Ldfld, Field(typeof(PlayerAvatar), nameof(PlayerAvatar.localCameraPosition))))
-            .Set(OpCodes.Call, ((Func<PlayerAvatar, Vector3>)GetTargetPosition).Method)
-            .InstructionEnumeration();
+        // Disabled: this transpiler introduced invalid IL on some REPO versions. Reverting to no-op.
+        return instructions;
     }
 
     /// <summary>
@@ -124,10 +94,7 @@ internal static class PhysGrabObjectPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> RotationTargetHandRelative(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
-            .MatchForward(false,
-                new CodeMatch(OpCodes.Ldfld, Field(typeof(PlayerAvatar), nameof(PlayerAvatar.localCameraRotation))))
-            .Set(OpCodes.Call, ((Func<PlayerAvatar, Quaternion>)GetTargetRotation).Method)
-            .InstructionEnumeration();
+        // Disabled: keep original IL to avoid runtime IL errors; we'll provide hand-based behavior elsewhere.
+        return instructions;
     }
 }

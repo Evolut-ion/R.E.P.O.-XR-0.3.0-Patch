@@ -212,7 +212,35 @@ public class VRPlayer : MonoBehaviour
         if (PlayerAvatar.instance.physGrabber.isRotating || PlayerController.instance.InputDisableTimer > 0)
             return;
         
-        var value = Actions.Instance["Turn"].ReadValue<float>();
+        float value = 0f;
+        try
+        {
+            value = Actions.Instance["Turn"].ReadValue<float>();
+        }
+        catch
+        {
+            // If the discrete Turn action isn't present or bound, fall back to the right-thumbstick X axis
+            try
+            {
+                var rot = Actions.Instance["Rotation"].ReadValue<Vector2>();
+                value = rot.x;
+            }
+            catch
+            {
+                value = 0f;
+            }
+        }
+
+        // If Turn exists but is zero, also try the Rotation axis as a secondary fallback
+        if (Mathf.Approximately(value, 0f))
+        {
+            try
+            {
+                var rot = Actions.Instance["Rotation"].ReadValue<Vector2>();
+                value = rot.x;
+            }
+            catch { }
+        }
 
         switch (Plugin.Config.TurnProvider.Value)
         {

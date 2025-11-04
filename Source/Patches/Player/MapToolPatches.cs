@@ -31,10 +31,10 @@ internal static class MapToolPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> MapToolDisableInput(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .Advance(1)
             .RemoveInstructions(87)
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "MapToolPatches.MapToolDisableInput");
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ internal static class MapToolPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> MapToolScalePatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Ldfld, Field(typeof(MapToolController), nameof(MapToolController.IntroCurve))))
             .Advance(-3)
@@ -63,7 +63,7 @@ internal static class MapToolPatches
             .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
             .InsertAndAdvance(new CodeInstruction(OpCodes.Call,
                 ((Func<MapToolController, float>)GetMinimumScale).Method))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "MapToolPatches.MapToolScalePatch");
 
         static float GetMaximumScale(MapToolController controller) =>
             controller.PlayerAvatar.isLocal && !SemiFunc.MenuLevel() ? 0.75f : 1;
@@ -79,7 +79,7 @@ internal static class MapToolPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> MapToolVisibilityPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Ldfld,
                     Field(typeof(MapToolController), nameof(MapToolController.VisualTransform))))
@@ -96,7 +96,7 @@ internal static class MapToolPatches
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, ((Func<bool, MapToolController, bool>)FuckYouSpraty).Method)
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "MapToolPatches.MapToolVisibilityPatch");
 
         // For lore reasons this name cannot change
         static bool FuckYouSpraty(bool original, MapToolController controller)
@@ -112,14 +112,14 @@ internal static class MapToolPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> NoShakePatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Callvirt, Method(typeof(CameraShake), nameof(CameraShake.Shake))))
             .Repeat(matcher => matcher
                 .Advance(-4)
                 .SetOpcodeAndAdvance(OpCodes.Nop)
                 .RemoveInstructions(4)
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "MapToolPatches.NoShakePatch");
     }
 
     /// <summary>

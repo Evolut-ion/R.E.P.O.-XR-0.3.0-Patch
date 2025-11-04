@@ -18,7 +18,7 @@ public class PasswordUI : MonoBehaviour
         // The password menu is shown during the loading phase, so move it over to that canvas
         
         var loadingUi = LoadingUI.instance;
-        loadingUi.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+    RepoCompat.AddTrackedDeviceRaycaster(loadingUi.gameObject);
         loadingUi.gameObject.AddComponent<RectMask2D>();
         
         passwordPage.transform.SetParent(loadingUi.transform);

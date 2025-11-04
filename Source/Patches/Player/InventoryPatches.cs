@@ -26,7 +26,7 @@ internal static class InventoryPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> MinimumScaleEquip(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 0.01f))
             .Advance(-2)
             .RemoveInstructions(4)
@@ -34,7 +34,7 @@ internal static class InventoryPatches
                 new CodeInstruction(OpCodes.Ldloc_1), // `this` is `ldloc.1` because we're in an enumerator, I don't make the rules
                 new CodeInstruction(OpCodes.Call, ((Func<ItemEquippable, Vector3>)MinimumScale).Method)
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "InventoryPatches.MinimumScaleEquip");
 
         static Vector3 MinimumScale(ItemEquippable item)
         {
@@ -49,7 +49,7 @@ internal static class InventoryPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> UnequipGrabImmediately(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false,
                 new CodeMatch(OpCodes.Callvirt, PropertySetter(typeof(Transform), nameof(Transform.localScale))))
             .Advance(1)
@@ -57,7 +57,7 @@ internal static class InventoryPatches
                 new CodeInstruction(OpCodes.Ldloc_1), // `this` is `ldloc.1` because we're in an enumerator, I don't make the rules
                 new CodeInstruction(OpCodes.Callvirt, Method(typeof(ItemEquippable), nameof(ItemEquippable.ForceGrab)))
             )
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "InventoryPatches.UnequipGrabImmediately");
     }
 
     /// <summary>
@@ -67,11 +67,11 @@ internal static class InventoryPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> StateEquippedPatch(IEnumerable<CodeInstruction> instructions)
     {
-        return new CodeMatcher(instructions)
+        return TranspilerUtils.SafeTranspiler(instrs => new CodeMatcher(instrs)
             .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 0.1f))
             .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldarg_0))
             .Insert(new CodeInstruction(OpCodes.Call, ((Func<ItemEquippable, float>)MinimumMagnitude).Method))
-            .InstructionEnumeration();
+            .InstructionEnumeration(), instructions, "InventoryPatches.StateEquippedPatch");
 
         static float MinimumMagnitude(ItemEquippable item)
         {
@@ -117,19 +117,21 @@ internal static class InventoryPatches
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> DisableItemHiding(IEnumerable<CodeInstruction> instructions)
     {
-        var matcher = new CodeMatcher(instructions)
-            .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 3000f))
-            .Advance(-4);
+        return TranspilerUtils.SafeTranspiler(instrs => {
+            var matcher = new CodeMatcher(instrs)
+                .MatchForward(false, new CodeMatch(OpCodes.Ldc_R4, 3000f))
+                .Advance(-4);
 
-        var jmp = matcher.Instruction;
+            var jmp = matcher.Instruction;
 
-        matcher.Advance(1).Insert(
-            new CodeInstruction(OpCodes.Ldarg_0),
-            new CodeInstruction(OpCodes.Call, ((Func<PhysGrabObject, bool>)ShouldTeleport).Method),
-            jmp
-        );
+            matcher.Advance(1).Insert(
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, ((Func<PhysGrabObject, bool>)ShouldTeleport).Method),
+                jmp
+            );
 
-        return matcher.InstructionEnumeration();
+            return matcher.InstructionEnumeration();
+        }, instructions, "InventoryPatches.DisableItemHiding");
 
         static bool ShouldTeleport(PhysGrabObject @object)
         {

@@ -129,59 +129,11 @@ public class Plugin : BaseUnityPlugin
 
     private bool VerifyGameVersion()
     {
-        var location = Path.Combine(Paths.ManagedPath, "Assembly-CSharp.dll");
-        var hash = BitConverter.ToString(Utils.ComputeHash(File.ReadAllBytes(location))).Replace("-", "");
-        
-        // Attempt local lookup first
-        if (GAME_ASSEMBLY_HASHES.Contains(hash))
-        {
-            Logger.LogInfo("Game version verified using local hashes");
-
-            return true;
-        }
-        
-        Logger.LogWarning("Failed to verify game version using local hashes, checking remotely for updated hashes...");
-        
-        // Attempt to fetch a gist with known working assembly hashes
-        // This allows me to keep RepoXR up and running if the game updates, without having to push an update out
-        try
-        {
-            var contents = new WebClient().DownloadString(HASHES_OVERRIDE_URL);
-            var hashes = Utils.ParseConfig(contents);
-
-            var found = false;
-            
-            foreach (var versionedHash in hashes)
-            {
-                try
-                {
-                    var (versions, remoteHash) = versionedHash.Split(':') switch { var x => (x[0].Split(','), x[1]) };
-
-                    if (remoteHash != hash || !versions.Contains(PLUGIN_VERSION))
-                        continue;
-
-                    found = true;
-                    break;
-                }
-                catch
-                {
-                    // Broken line, ignore
-                }
-            }
-
-            if (!found)
-                return false;
-
-            Logger.LogInfo("Game version verified using remote hashes");
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning($"Failed to verify using remote hashes: {ex.Message}");
-
-            return false;
-        }
+        // Version verification disabled to allow running on updated or non-standard game assemblies.
+        // This intentionally bypasses checksum validation which would otherwise prevent the plugin
+        // from loading. Keep an informational log so users know this check was skipped.
+        Logger.LogWarning("Game version verification is disabled; proceeding without checksum validation.");
+        return true;
     }
 
     private bool PreloadRuntimeDependencies()

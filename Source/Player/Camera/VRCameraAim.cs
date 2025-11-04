@@ -16,6 +16,7 @@ public class VRCameraAim : MonoBehaviour
     private Transform mainCamera;
     
     private Quaternion rotation;
+    private float yawOffset;
     
     // Aim fields
     private bool aimTargetActive;
@@ -41,6 +42,12 @@ public class VRCameraAim : MonoBehaviour
 
     private Quaternion lastCameraRotation;
     private float playerAimingTimer;
+    // Track the last rotation we pushed to the game's CameraAim to avoid repeated tiny resets (can cause flicker)
+    private Quaternion lastSetPlayerAim = Quaternion.identity;
+    private float lastSetPlayerAimTime = 0f;
+
+    // smoothing velocity for local position
+    private Vector3 localPosVelocity;
 
     public bool IsActive => aimTargetActive;
     
@@ -77,7 +84,8 @@ public class VRCameraAim : MonoBehaviour
             aimTargetLerp = Mathf.Clamp01(aimTargetLerp);
         } else if (aimTargetLerp > 0)
         {
-            cameraAim.ResetPlayerAim(mainCamera.rotation);
+            // End aim target lerp without forcing a reset of the game's CameraAim. For VR we want the
+            // headset + input to remain authoritative so do not call SetPlayerAim/ResetPlayerAim here.
             aimTargetLerp = 0;
             aimTargetPriority = 999;
             aimTargetActive = false;
@@ -115,19 +123,17 @@ public class VRCameraAim : MonoBehaviour
         if (!aimTargetActive && aimTargetSoftTimer <= 0)
             rotation = Quaternion.LerpUnclamped(rotation, Quaternion.Euler(0, rotation.eulerAngles.y, 0), 5 * Time.deltaTime);
 
-        var lastRotation = transform.localRotation;
-        
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.Euler(0, transform.localEulerAngles.y, 0);
-        
-        var cameraPos = mainCamera.transform.position;
-        
-        transform.localRotation = Quaternion.Lerp(lastRotation, rotation, 33 * Time.deltaTime);
-        transform.localPosition = cameraPos - mainCamera.transform.position;
-        
-        // Finally, reset the player aim
-        
-        cameraAim.ResetPlayerAim(mainCamera.rotation);
+    // For VR, follow the XR camera rotation and smooth small movements to reduce jitter.
+    // Use Slerp for rotation and SmoothDamp for position to keep things stable. Lower the smoothing
+    // rate to make motion smoother and reduce random spinning caused by abrupt resets.
+    const float rotSmoothSpeed = 6f; // lower = smoother
+    const float posSmoothTime = 0.12f; // larger = smoother
+
+    // Target rotation is the headset rotation plus any yaw offset applied by player turning
+    var targetLocal = mainCamera.localRotation * Quaternion.Euler(0f, yawOffset, 0f);
+    transform.localRotation = Quaternion.Slerp(transform.localRotation, targetLocal, rotSmoothSpeed * Time.deltaTime);
+    // Smooth towards zero local offset (camera anchor point)
+    transform.localPosition = Vector3.SmoothDamp(transform.localPosition, Vector3.zero, ref localPosVelocity, posSmoothTime);
     }
 
     private Quaternion GetLookRotation(Vector3 position)
@@ -143,10 +149,16 @@ public class VRCameraAim : MonoBehaviour
     /// </summary>
     public void TurnAimNow(float degrees)
     {
-        var rot = Quaternion.Euler(transform.eulerAngles + Vector3.up * degrees);
-
-        transform.localRotation = rot;
-        rotation = rot;
+        // Accumulate a yaw offset instead of directly setting localRotation. This keeps
+        // headset rotation authoritative while allowing smooth/snap turning to rotate
+        // the player's aim around the Y axis.
+        yawOffset += degrees;
+        // Normalize to [-180,180]
+        if (yawOffset > 180f) yawOffset -= 360f;
+        if (yawOffset < -180f) yawOffset += 360f;
+        // Apply immediately so snap turns feel instant
+        transform.localRotation = mainCamera.localRotation * Quaternion.Euler(0f, yawOffset, 0f);
+        rotation = transform.localRotation;
     }
 
     /// <summary>
@@ -155,9 +167,16 @@ public class VRCameraAim : MonoBehaviour
     public void ForceSetRotation(Vector3 newAngles)
     {
         var rot = Quaternion.Euler(newAngles);
-        
+
         transform.localRotation = rot;
         rotation = rot;
+        // Update yawOffset relative to the current main camera local rotation
+        if (mainCamera != null)
+        {
+            var mainYaw = mainCamera.localRotation.eulerAngles.y;
+            var rotYaw = rot.eulerAngles.y;
+            yawOffset = Mathf.DeltaAngle(mainYaw, rotYaw);
+        }
     }
 
     /// <summary>
@@ -222,17 +241,21 @@ internal static class CameraAimPatches
     [HarmonyPostfix]
     private static void OnCameraAimAwake(CameraAim __instance)
     {
-        __instance.gameObject.AddComponent<VRCameraAim>();
-    }
+        var comp = __instance.gameObject.AddComponent<VRCameraAim>();
 
-    /// <summary>
-    /// Set initial rotation on game start
-    /// </summary>
-    [HarmonyPatch(typeof(CameraAim), nameof(CameraAim.CameraAimSpawn))]
-    [HarmonyPostfix]
-    private static void OnCameraAimSpawn(float _rotation)
-    {
-        VRCameraAim.instance.SetSpawnRotation(_rotation);
+        // Try to set a sensible spawn rotation immediately after the VRCameraAim is attached.
+        // Prefer the game's CameraNoPlayerTarget if present, otherwise fall back to the main camera's Y rotation.
+        float yRot = 0f;
+        if (CameraNoPlayerTarget.instance)
+        {
+            yRot = CameraNoPlayerTarget.instance.transform.eulerAngles.y;
+        }
+        else if (UnityEngine.Camera.main)
+        {
+            yRot = UnityEngine.Camera.main.transform.eulerAngles.y;
+        }
+
+        comp.SetSpawnRotation(yRot);
     }
     
     /// <summary>

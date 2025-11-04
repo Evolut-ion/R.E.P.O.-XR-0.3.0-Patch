@@ -1,0 +1,15 @@
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\bin\Release\net6.0\AsmInspector.exe
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\bin\Release\net6.0\AsmInspector.deps.json
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\bin\Release\net6.0\AsmInspector.runtimeconfig.json
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\bin\Release\net6.0\AsmInspector.dll
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\bin\Release\net6.0\AsmInspector.pdb
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.AssemblyInfoInputs.cache
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.AssemblyInfo.cs
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.csproj.CoreCompileInputs.cache
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.sourcelink.json
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.dll
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\refint\AsmInspector.dll
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.pdb
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\AsmInspector.genruntimeconfig.cache
+c:\Users\tttda\Desktop\REPOVR\RepoXR\tools\AsmInspector\obj\Release\net6.0\ref\AsmInspector.dll

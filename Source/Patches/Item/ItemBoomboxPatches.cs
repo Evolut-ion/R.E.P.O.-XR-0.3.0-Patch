@@ -21,8 +21,8 @@ internal static class ItemBoomboxPatches
         var bopSpeed = Plugin.Config.ReducedAimImpact.Value ? 5 : 15;
         var bopMultiplier = Plugin.Config.ReducedAimImpact.Value ? 0.15f : 0.5f;
 
-        var cameraPosition = PhysGrabber.instance.playerAvatar.localCameraPosition;
-        var cameraForward = PhysGrabber.instance.playerAvatar.localCameraTransform.forward * 2;
+    var cameraPosition = RepoCompat.GetLocalCameraPosition(PhysGrabber.instance.playerAvatar);
+    var cameraForward = RepoCompat.GetLocalCameraTransform(PhysGrabber.instance.playerAvatar).forward * 2;
         var upOffset = Vector3.up * Mathf.Sin(Time.time * bopSpeed) * bopMultiplier;
         var lookAtPosition = cameraPosition + cameraForward + upOffset;
 

@@ -58,6 +58,12 @@
       <Compile Remove="Preload\**" />
     </ItemGroup>
 
+    <!-- Exclude local tool projects from main compilation -->
+    <ItemGroup>
+      <Compile Remove="tools\**\*.cs" />
+      <None Remove="tools\**\*" />
+    </ItemGroup>
+
     <ItemGroup>
       <EmbeddedResource Remove="Preload\**" />
     </ItemGroup>
