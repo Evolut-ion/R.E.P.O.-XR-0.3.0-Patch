@@ -9,3 +9,10 @@ Install Instructions:
 This was only made for fun while R.E.P.O XR isn't updated. All credit goes to
 https://github.com/DaXcess
 As without his work this would not further be possible.
+
+
+####################################################################################################
+*                                 OUTDATED                                                         *
+*                             Use R.E.P.O XR on thunderstore as they                               *
+*                         Get closer to launching for the 0.3.0 update                             *
+####################################################################################################                     
